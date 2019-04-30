@@ -6,6 +6,8 @@ use std::{
     rc::Rc,
     time::{Duration, SystemTime},
 };
+use set_error::ChangeError;
+
 
 struct FileListBuilder {
     files: Vec<WatchedFile>,
