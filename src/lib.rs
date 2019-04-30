@@ -1,4 +1,4 @@
-#![deny(clippy::pedantic)]
+// #![deny(clippy::pedantic)]
 // #![warn(missing_docs)]
 
 use set_error::ChangeError;
@@ -6,36 +6,41 @@ use set_error::ChangeError;
 use std::{
     path::Path,
     rc::Rc,
+    thread,
     time::{Duration, SystemTime},
 };
 
-pub struct FileListBuilder {
-    files: Vec<WatchedFile>,
+pub struct FileListBuilder<T: Clone> {
+    files: Vec<WatchedFile<T>>,
     interval: Duration,
     max_retries: Option<u32>,
+    open_file_func: Rc<Fn(&str) -> WatchingFuncResult<T>>,
 }
 
-pub struct WatchedFile {
+pub struct WatchedFile<T> {
     path: String,
-    time: SystemTime,
-    functions_on_run: Vec<Rc<Fn(String) -> WatchingFuncResult>>,
+    date_modified: SystemTime,
+    functions_on_run: Vec<Rc<Fn(T) -> WatchingFuncResult<T>>>,
+    function_on_end: Rc<Fn(T) -> Result<(), String>>,
 }
 
-pub enum WatchingFuncResult {
-    Success,
+pub enum WatchingFuncResult<T> {
+    Success(T),
     Retry,
+    Fail(String),
 }
+use WatchingFuncResult::*;
 
-impl FileListBuilder {
-    fn new() -> Self {
+impl<T: Clone> FileListBuilder<T> {
+    fn new<F: 'static + Fn(&str) -> WatchingFuncResult<T>>(open_func: F) -> Self {
         Self {
             files: Vec::new(),
             interval: Duration::from_millis(1000),
             max_retries: None,
+            open_file_func: Rc::new(open_func),
         }
     }
-    fn launch(self) -> () {}
-    fn add_file(mut self, file: WatchedFile) -> Self {
+    fn add_file(mut self, file: WatchedFile<T>) -> Self {
         self.files.push(file);
         self
     }
@@ -47,22 +52,87 @@ impl FileListBuilder {
         self.max_retries = Some(re);
         self
     }
+    fn launch(self) -> Result<(), String> {
+        let mut on_first_run = self.files.len();
+        for file in self.files {
+            thread::sleep(self.interval);
+            if on_first_run != 0 {
+                on_first_run -= 1
+            }
+            if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
+                let mut file_data = {
+                    let mut retries = self.max_retries;
+                    loop {
+                        match (self.open_file_func)(&file.path) {
+                            Success(t) => break t,
+                            Fail(s) => return Err(s),
+                            Retry => {
+                                retries = retries.map(|x| x - 1);
+                                match retries {
+                                    Some(n) if n == 0 => {
+                                        return Err(String::from("no more retries"))
+                                    }
+                                    _ => {
+                                        thread::sleep(self.interval);
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                for function_to_run in file.functions_on_run {
+                    file_data = {
+                        let mut retries = self.max_retries;
+                        loop {
+                            match function_to_run(file_data.clone()) {
+                                Success(t) => break t,
+                                Fail(s) => return Err(s),
+                                Retry => {
+                                    retries = retries.map(|x| x - 1);
+                                    match retries {
+                                        Some(n) if n == 0 => {
+                                            return Err(String::from("no more retries"))
+                                        }
+                                        _ => {
+                                            thread::sleep(self.interval);
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                (file.function_on_end)(file_data)?
+            }
+        }
+        Ok(())
+    }
 }
 
-impl WatchedFile {
-    fn new(path: String) -> Result<Self, String> {
+impl<T> WatchedFile<T> {
+    fn new<G: 'static + Fn(T) -> Result<(), String>>(
+        path: String,
+        end_func: G,
+    ) -> Result<Self, String> {
         Ok(Self {
             path: path.clone(),
-            time: Path::new(&path)
-                .metadata()
-                .set_error(&format!("failed to open file {} metadata", path))?
-                .modified()
-                .set_error(&format!("failed to find files date modified {}", path))?,
+            date_modified: date_modified(&path)?,
             functions_on_run: Vec::new(),
+            function_on_end: Rc::new(end_func),
         })
     }
-    fn add_func<F: 'static + Fn(String) -> WatchingFuncResult>(mut self, func: F) -> Self {
+    fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(mut self, func: F) -> Self {
         self.functions_on_run.push(Rc::new(func));
         self
     }
+}
+
+fn date_modified(path: &str) -> Result<SystemTime, String> {
+    Ok(Path::new(path)
+        .metadata()
+        .set_error(&format!("failed to open file {} metadata", path))?
+        .modified()
+        .set_error(&format!("failed to find files date modified {}", path))?)
 }
