@@ -11,9 +11,3 @@ documentation = "https://docs.rs/file-watcher/"
 homepage = "http://efunb.com/"
 repository = "https://gitlab.com/efunb/file-watcher"
 edition = "2018"
-
-[dev-dependencies]
-dont_disappear = "3"
-rand = "0.6"
-chrono = "0.4"
-url = "1.7.2"
