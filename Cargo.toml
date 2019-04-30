@@ -11,3 +11,6 @@ documentation = "https://docs.rs/file-watcher/"
 homepage = "http://efunb.com/"
 repository = "https://gitlab.com/efunb/file-watcher"
 edition = "2018"
+
+[dependencies]
+set-error = "0.0.1"
