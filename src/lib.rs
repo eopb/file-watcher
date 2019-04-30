@@ -2,15 +2,13 @@
 // #![warn(missing_docs)]
 
 use std::{
-    iter::Iterator,
-    path::Path,
     rc::Rc,
-    thread,
-    time::{self, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 struct FileListBuilder {
     files: Vec<WatchedFile>,
+    interval: Duration,
 }
 
 struct WatchedFile {
@@ -20,5 +18,11 @@ struct WatchedFile {
 }
 
 impl FileListBuilder {
+    fn new() -> Self {
+        Self {
+            files: Vec::new(),
+            interval: Duration::from_millis(1000),
+        }
+    }
     fn launch(self) -> () {}
 }
