@@ -1,12 +1,14 @@
 #![deny(clippy::pedantic)]
 // #![warn(missing_docs)]
 
+use set_error::ChangeError;
+
 use std::{
     path::Path,
     rc::Rc,
     time::{Duration, SystemTime},
 };
-use set_error::ChangeError;
+
 
 
 struct FileListBuilder {
@@ -52,15 +54,12 @@ impl FileListBuilder {
 impl WatchedFile {
     fn new(path: String) -> Result<Self, String> {
         Ok(Self {
-            path: path,
+            path: path.clone(),
             time: Path::new(&path)
                 .metadata()
-                .set_error(&format!("failed to open file {} metadata", path.display()))?
+                .set_error(&format!("failed to open file {} metadata", path))?
                 .modified()
-                .set_error(&format!(
-                    "failed to find files date modifide {}",
-                    path.display()
-                )),
+                .set_error(&format!("failed to find files date modified {}", path))?,
             functions_on_run: Vec::new(),
         })
     }
