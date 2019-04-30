@@ -34,7 +34,6 @@ impl FileListBuilder {
             max_retries: None,
         }
     }
-    fn launch(self) -> () {}
     fn add_file(mut self, file: WatchedFile) -> Self {
         self.files.push(file);
         self
@@ -47,6 +46,7 @@ impl FileListBuilder {
         self.max_retries = Some(re);
         self
     }
+    fn launch(self) -> () {}
 }
 
 impl WatchedFile {
