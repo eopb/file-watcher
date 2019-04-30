@@ -1,4 +1,4 @@
-#![deny(clippy::pedantic)]
+// #![deny(clippy::pedantic)]
 // #![warn(missing_docs)]
 
 use set_error::ChangeError;
@@ -19,7 +19,7 @@ pub struct FileListBuilder<T> {
 
 pub struct WatchedFile<T> {
     path: String,
-    time: SystemTime,
+    date_modified: SystemTime,
     functions_on_run: Vec<Rc<Fn(T) -> WatchingFuncResult<T>>>,
 }
 
@@ -52,25 +52,28 @@ impl<T> FileListBuilder<T> {
         self
     }
     fn launch(self) -> Result<(), String> {
-        let on_first_run = true;
+        let mut on_first_run = true;
         for file in self.files {
-            let mut retries = self.max_retries;
-            let file_data = loop {
-                match (self.open_file_func)(&file.path) {
-                    Success(t) => break t,
-                    Fail(s) => return Err(s),
-                    Retry => {
-                        retries = retries.map(|x| x - 1);
-                        match retries {
-                            Some(n) if n == 0 => return Err(String::from("no more retries")),
-                            _ => {
-                                thread::sleep(self.interval);
-                                continue;
+            thread::sleep(self.interval);
+            if on_first_run || (file.date_modified != date_modified(&file.path)?) {
+                let mut retries = self.max_retries;
+                let file_data = loop {
+                    match (self.open_file_func)(&file.path) {
+                        Success(t) => break t,
+                        Fail(s) => return Err(s),
+                        Retry => {
+                            retries = retries.map(|x| x - 1);
+                            match retries {
+                                Some(n) if n == 0 => return Err(String::from("no more retries")),
+                                _ => {
+                                    thread::sleep(self.interval);
+                                    continue;
+                                }
                             }
                         }
                     }
-                }
-            };
+                };
+            }
         }
         Ok(())
     }
@@ -80,11 +83,7 @@ impl<T> WatchedFile<T> {
     fn new(path: String) -> Result<Self, String> {
         Ok(Self {
             path: path.clone(),
-            time: Path::new(&path)
-                .metadata()
-                .set_error(&format!("failed to open file {} metadata", path))?
-                .modified()
-                .set_error(&format!("failed to find files date modified {}", path))?,
+            date_modified: date_modified(&path)?,
             functions_on_run: Vec::new(),
         })
     }
@@ -92,4 +91,12 @@ impl<T> WatchedFile<T> {
         self.functions_on_run.push(Rc::new(func));
         self
     }
+}
+
+fn date_modified(path: &str) -> Result<SystemTime, String> {
+    Ok(Path::new(path)
+        .metadata()
+        .set_error(&format!("failed to open file {} metadata", path))?
+        .modified()
+        .set_error(&format!("failed to find files date modified {}", path))?)
 }
