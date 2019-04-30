@@ -9,21 +9,19 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-
-
-struct FileListBuilder {
+pub struct FileListBuilder {
     files: Vec<WatchedFile>,
     interval: Duration,
     max_retries: Option<u32>,
 }
 
-struct WatchedFile {
+pub struct WatchedFile {
     path: String,
     time: SystemTime,
     functions_on_run: Vec<Rc<Fn(String) -> WatchingFuncResult>>,
 }
 
-enum WatchingFuncResult {
+pub enum WatchingFuncResult {
     Success,
     Retry,
 }
@@ -62,5 +60,9 @@ impl WatchedFile {
                 .set_error(&format!("failed to find files date modified {}", path))?,
             functions_on_run: Vec::new(),
         })
+    }
+    fn add_func<F: 'static + Fn(String) -> WatchingFuncResult>(mut self, func: F) -> Self {
+        self.functions_on_run.push(Rc::new(func));
+        self
     }
 }
