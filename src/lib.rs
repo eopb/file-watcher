@@ -10,7 +10,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-pub struct FileListBuilder<T> {
+pub struct FileListBuilder<T: Clone> {
     files: Vec<WatchedFile<T>>,
     interval: Duration,
     max_retries: Option<u32>,
@@ -21,6 +21,7 @@ pub struct WatchedFile<T> {
     path: String,
     date_modified: SystemTime,
     functions_on_run: Vec<Rc<Fn(T) -> WatchingFuncResult<T>>>,
+    function_on_end: Rc<Fn(T) -> Result<(), String>>,
 }
 
 pub enum WatchingFuncResult<T> {
@@ -30,7 +31,7 @@ pub enum WatchingFuncResult<T> {
 }
 use WatchingFuncResult::*;
 
-impl<T> FileListBuilder<T> {
+impl<T: Clone> FileListBuilder<T> {
     fn new<F: 'static + Fn(&str) -> WatchingFuncResult<T>>(open_func: F) -> Self {
         Self {
             files: Vec::new(),
@@ -52,27 +53,58 @@ impl<T> FileListBuilder<T> {
         self
     }
     fn launch(self) -> Result<(), String> {
-        let mut on_first_run = true;
+        let mut on_first_run = self.files.len();
         for file in self.files {
             thread::sleep(self.interval);
-            if on_first_run || (file.date_modified != date_modified(&file.path)?) {
-                let mut retries = self.max_retries;
-                let file_data = loop {
-                    match (self.open_file_func)(&file.path) {
-                        Success(t) => break t,
-                        Fail(s) => return Err(s),
-                        Retry => {
-                            retries = retries.map(|x| x - 1);
-                            match retries {
-                                Some(n) if n == 0 => return Err(String::from("no more retries")),
-                                _ => {
-                                    thread::sleep(self.interval);
-                                    continue;
+            if on_first_run != 0 {
+                on_first_run -= 1
+            }
+            if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
+                let mut file_data = {
+                    let mut retries = self.max_retries;
+                    loop {
+                        match (self.open_file_func)(&file.path) {
+                            Success(t) => break t,
+                            Fail(s) => return Err(s),
+                            Retry => {
+                                retries = retries.map(|x| x - 1);
+                                match retries {
+                                    Some(n) if n == 0 => {
+                                        return Err(String::from("no more retries"))
+                                    }
+                                    _ => {
+                                        thread::sleep(self.interval);
+                                        continue;
+                                    }
                                 }
                             }
                         }
                     }
                 };
+                for function_to_run in file.functions_on_run {
+                    file_data = {
+                        let mut retries = self.max_retries;
+                        loop {
+                            match function_to_run(file_data.clone()) {
+                                Success(t) => break t,
+                                Fail(s) => return Err(s),
+                                Retry => {
+                                    retries = retries.map(|x| x - 1);
+                                    match retries {
+                                        Some(n) if n == 0 => {
+                                            return Err(String::from("no more retries"))
+                                        }
+                                        _ => {
+                                            thread::sleep(self.interval);
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                (file.function_on_end)(file_data)?
             }
         }
         Ok(())
@@ -80,11 +112,15 @@ impl<T> FileListBuilder<T> {
 }
 
 impl<T> WatchedFile<T> {
-    fn new(path: String) -> Result<Self, String> {
+    fn new<G: 'static + Fn(T) -> Result<(), String>>(
+        path: String,
+        end_func: G,
+    ) -> Result<Self, String> {
         Ok(Self {
             path: path.clone(),
             date_modified: date_modified(&path)?,
             functions_on_run: Vec::new(),
+            function_on_end: Rc::new(end_func),
         })
     }
     fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(mut self, func: F) -> Self {
