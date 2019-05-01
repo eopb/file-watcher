@@ -53,15 +53,16 @@ impl<T: Clone> FileListBuilder<T> {
         self
     }
     pub fn launch(mut self) -> Result<(), String> {
-        let mut on_first_run = self.files.len();
+        let mut on_first_run = self.files.len() + 1;
         loop {
             thread::sleep(self.interval);
             for mut file in &mut self.files {
                 thread::sleep(self.interval);
-                
+
                 if on_first_run != 0 {
                     on_first_run -= 1
-                }println!("on first run {}", on_first_run);
+                }
+                println!("on first run {}", on_first_run);
                 if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
                     file.date_modified = date_modified(&file.path)?;
                     let mut file_data = {
