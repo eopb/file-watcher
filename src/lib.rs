@@ -55,9 +55,7 @@ impl<T: Clone> FileListBuilder<T> {
     pub fn launch(mut self) -> Result<(), String> {
         let mut on_first_run = self.files.len() + 1;
         loop {
-            thread::sleep(self.interval);
             for mut file in &mut self.files {
-                thread::sleep(self.interval);
 
                 if on_first_run != 0 {
                     on_first_run -= 1
@@ -130,6 +128,7 @@ impl<T: Clone> FileListBuilder<T> {
                             }
                         }
                     }
+                    thread::sleep(self.interval);
                 }
             }
         }
