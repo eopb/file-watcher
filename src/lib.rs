@@ -140,9 +140,8 @@ impl<T> WatchedFile<T> {
             function_on_end: Rc::new(end_func),
         })
     }
-    pub fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(mut self, func: F) -> Self {
+    pub fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(&mut self, func: F) {
         self.functions_on_run.push(Rc::new(func));
-        self
     }
 }
 
