@@ -26,7 +26,7 @@ pub struct WatchedFile<T> {
 
 pub enum WatchingFuncResult<T> {
     Success(T),
-    Retry,
+    Retry(String),
     Fail(String),
 }
 use WatchingFuncResult::*;
@@ -66,13 +66,14 @@ impl<T: Clone> FileListBuilder<T> {
                         match (self.open_file_func)(&file.path) {
                             Success(t) => break t,
                             Fail(s) => return Err(s),
-                            Retry => {
+                            Retry(s) => {
                                 retries = retries.map(|x| x - 1);
                                 match retries {
                                     Some(n) if n == 0 => {
                                         return Err(String::from("no more retries"))
                                     }
                                     _ => {
+                                        println!("{}", s);
                                         thread::sleep(self.interval);
                                         continue;
                                     }
@@ -88,13 +89,14 @@ impl<T: Clone> FileListBuilder<T> {
                             match function_to_run(file_data.clone()) {
                                 Success(t) => break t,
                                 Fail(s) => return Err(s),
-                                Retry => {
+                                Retry(s) => {
                                     retries = retries.map(|x| x - 1);
                                     match retries {
                                         Some(n) if n == 0 => {
                                             return Err(String::from("no more retries"))
                                         }
                                         _ => {
+                                            println!("{}", s);
                                             thread::sleep(self.interval);
                                             continue;
                                         }
