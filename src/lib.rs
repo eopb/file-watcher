@@ -32,7 +32,7 @@ pub enum WatchingFuncResult<T> {
 use WatchingFuncResult::*;
 
 impl<T: Clone> FileListBuilder<T> {
-    fn new<F: 'static + Fn(&str) -> WatchingFuncResult<T>>(open_func: F) -> Self {
+    pub fn new<F: 'static + Fn(&str) -> WatchingFuncResult<T>>(open_func: F) -> Self {
         Self {
             files: Vec::new(),
             interval: Duration::from_millis(1000),
@@ -40,19 +40,19 @@ impl<T: Clone> FileListBuilder<T> {
             open_file_func: Rc::new(open_func),
         }
     }
-    fn add_file(mut self, file: WatchedFile<T>) -> Self {
+    pub fn add_file(mut self, file: WatchedFile<T>) -> Self {
         self.files.push(file);
         self
     }
-    fn with_interval(mut self, inter: Duration) -> Self {
+    pub fn with_interval(mut self, inter: Duration) -> Self {
         self.interval = inter;
         self
     }
-    fn with_max_retries(mut self, re: u32) -> Self {
+    pub fn with_max_retries(mut self, re: u32) -> Self {
         self.max_retries = Some(re);
         self
     }
-    fn launch(self) -> Result<(), String> {
+    pub fn launch(self) -> Result<(), String> {
         let mut on_first_run = self.files.len();
         for file in self.files {
             thread::sleep(self.interval);
@@ -114,7 +114,7 @@ impl<T: Clone> FileListBuilder<T> {
 }
 
 impl<T> WatchedFile<T> {
-    fn new<G: 'static + Fn(T) -> Result<(), String>>(
+    pub fn new<G: 'static + Fn(T) -> Result<(), String>>(
         path: String,
         end_func: G,
     ) -> Result<Self, String> {
@@ -125,7 +125,7 @@ impl<T> WatchedFile<T> {
             function_on_end: Rc::new(end_func),
         })
     }
-    fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(mut self, func: F) -> Self {
+    pub fn add_func<F: 'static + Fn(T) -> WatchingFuncResult<T>>(mut self, func: F) -> Self {
         self.functions_on_run.push(Rc::new(func));
         self
     }
