@@ -105,7 +105,23 @@ impl<T: Clone> FileListBuilder<T> {
                         }
                     }
                 }
-                (file.function_on_end)(file_data)?
+                let mut retries = self.max_retries;
+                loop {
+                    match (file.function_on_end)(file_data.clone()) {
+                        Ok(_) => return Ok(()),
+                        Err(s) => {
+                            retries = retries.map(|x| x - 1);
+                            match retries {
+                                Some(n) if n == 0 => return Err(String::from("no more retries")),
+                                _ => {
+                                    println!("{}", s);
+                                    thread::sleep(self.interval);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         Ok(())
