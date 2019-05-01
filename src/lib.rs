@@ -52,16 +52,17 @@ impl<T: Clone> FileListBuilder<T> {
         self.max_retries = Some(re);
         self
     }
-    pub fn launch(self) -> Result<(), String> {
+    pub fn launch(mut self) -> Result<(), String> {
         let mut on_first_run = self.files.len();
         loop {
             thread::sleep(self.interval);
-            for file in self.files.clone() {
+            for mut file in &mut self.files {
                 thread::sleep(self.interval);
                 if on_first_run != 0 {
                     on_first_run -= 1
                 }
                 if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
+                    file.date_modified = date_modified(&file.path)?;
                     let mut file_data = {
                         let mut retries = self.max_retries;
                         loop {
@@ -84,7 +85,7 @@ impl<T: Clone> FileListBuilder<T> {
                             }
                         }
                     };
-                    for function_to_run in file.functions_on_run {
+                    for function_to_run in file.functions_on_run.clone() {
                         file_data = {
                             let mut retries = self.max_retries;
                             loop {
