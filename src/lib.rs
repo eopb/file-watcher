@@ -108,7 +108,7 @@ impl<T: Clone> FileListBuilder<T> {
                 let mut retries = self.max_retries;
                 loop {
                     match (file.function_on_end)(file_data.clone()) {
-                        Ok(_) => return Ok(()),
+                        Ok(_) => break,
                         Err(s) => {
                             retries = retries.map(|x| x - 1);
                             match retries {
