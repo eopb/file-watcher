@@ -17,6 +17,7 @@ pub struct FileListBuilder<T: Clone> {
     open_file_func: Rc<Fn(&str) -> WatchingFuncResult<T>>,
 }
 
+#[derive(Clone)]
 pub struct WatchedFile<T> {
     path: String,
     date_modified: SystemTime,
@@ -53,39 +54,18 @@ impl<T: Clone> FileListBuilder<T> {
     }
     pub fn launch(self) -> Result<(), String> {
         let mut on_first_run = self.files.len();
-        for file in self.files {
+        loop {
             thread::sleep(self.interval);
-            if on_first_run != 0 {
-                on_first_run -= 1
-            }
-            if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
-                let mut file_data = {
-                    let mut retries = self.max_retries;
-                    loop {
-                        match (self.open_file_func)(&file.path) {
-                            Success(t) => break t,
-                            Fail(s) => return Err(s),
-                            Retry(s) => {
-                                retries = retries.map(|x| x - 1);
-                                match retries {
-                                    Some(n) if n == 0 => {
-                                        return Err(String::from("no more retries"))
-                                    }
-                                    _ => {
-                                        println!("{}", s);
-                                        thread::sleep(self.interval);
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                };
-                for function_to_run in file.functions_on_run {
-                    file_data = {
+            for file in self.files.clone() {
+                thread::sleep(self.interval);
+                if on_first_run != 0 {
+                    on_first_run -= 1
+                }
+                if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
+                    let mut file_data = {
                         let mut retries = self.max_retries;
                         loop {
-                            match function_to_run(file_data.clone()) {
+                            match (self.open_file_func)(&file.path) {
                                 Success(t) => break t,
                                 Fail(s) => return Err(s),
                                 Retry(s) => {
@@ -103,20 +83,46 @@ impl<T: Clone> FileListBuilder<T> {
                                 }
                             }
                         }
+                    };
+                    for function_to_run in file.functions_on_run {
+                        file_data = {
+                            let mut retries = self.max_retries;
+                            loop {
+                                match function_to_run(file_data.clone()) {
+                                    Success(t) => break t,
+                                    Fail(s) => return Err(s),
+                                    Retry(s) => {
+                                        retries = retries.map(|x| x - 1);
+                                        match retries {
+                                            Some(n) if n == 0 => {
+                                                return Err(String::from("no more retries"))
+                                            }
+                                            _ => {
+                                                println!("{}", s);
+                                                thread::sleep(self.interval);
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
-                let mut retries = self.max_retries;
-                loop {
-                    match (file.function_on_end)(file_data.clone()) {
-                        Ok(_) => break,
-                        Err(s) => {
-                            retries = retries.map(|x| x - 1);
-                            match retries {
-                                Some(n) if n == 0 => return Err(String::from("no more retries")),
-                                _ => {
-                                    println!("{}", s);
-                                    thread::sleep(self.interval);
-                                    continue;
+                    let mut retries = self.max_retries;
+                    loop {
+                        match (file.function_on_end)(file_data.clone()) {
+                            Ok(_) => break,
+                            Err(s) => {
+                                retries = retries.map(|x| x - 1);
+                                match retries {
+                                    Some(n) if n == 0 => {
+                                        return Err(String::from("no more retries"))
+                                    }
+                                    _ => {
+                                        println!("{}", s);
+                                        thread::sleep(self.interval);
+                                        continue;
+                                    }
                                 }
                             }
                         }
