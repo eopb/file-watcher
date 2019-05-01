@@ -40,9 +40,8 @@ impl<T: Clone> FileListBuilder<T> {
             open_file_func: Rc::new(open_func),
         }
     }
-    pub fn add_file(mut self, file: WatchedFile<T>) -> Self {
+    pub fn add_file(&mut self, file: WatchedFile<T>) {
         self.files.push(file);
-        self
     }
     pub fn with_interval(mut self, inter: Duration) -> Self {
         self.interval = inter;
