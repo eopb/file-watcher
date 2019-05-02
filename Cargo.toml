@@ -13,4 +13,4 @@ repository = "https://gitlab.com/efunb/file-watcher"
 edition = "2018"
 
 [dependencies]
-set-error = "0.0.1"
+set-error = "1"
