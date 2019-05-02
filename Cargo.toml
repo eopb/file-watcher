@@ -1,6 +1,6 @@
 [package]
 name = "file-watcher"
-version = "0.0.17"
+version = "0.0.18"
 authors = ["Ethan Brierley <ethanboxx@gmail.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
@@ -13,4 +13,4 @@ repository = "https://gitlab.com/efunb/file-watcher"
 edition = "2018"
 
 [dependencies]
-set-error = "0.0.1"
+set-error = "1"

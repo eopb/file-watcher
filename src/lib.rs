@@ -10,6 +10,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+#[derive(Clone)]
 pub struct FileListBuilder<T: Clone> {
     files: Vec<WatchedFile<T>>,
     interval: Duration,
@@ -67,51 +68,14 @@ impl<T: Clone> FileListBuilder<T> {
                 }
                 if (on_first_run != 0) || (file.date_modified != date_modified(&file.path)?) {
                     file.date_modified = date_modified(&file.path)?;
-                    let mut file_data = {
-                        let mut retries = self.max_retries;
-                        loop {
-                            match (self.open_file_func)(&file.path) {
-                                Success(t) => break t,
-                                Fail(s) => return Err(s),
-                                Retry(s) => {
-                                    retries = retries.map(|x| x - 1);
-                                    match retries {
-                                        Some(n) if n == 0 => {
-                                            return Err(String::from("no more retries"))
-                                        }
-                                        _ => {
-                                            println!("{}", s);
-                                            thread::sleep(self.interval);
-                                            continue;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    };
+                    let open_file_func_as_not_mut = self.open_file_func.clone();
+                    let mut file_data = keep_doing_until(self.max_retries, self.interval, || {
+                        (open_file_func_as_not_mut)(&file.path)
+                    })?;
                     for function_to_run in file.functions_on_run.clone() {
-                        file_data = {
-                            let mut retries = self.max_retries;
-                            loop {
-                                match function_to_run(file_data.clone()) {
-                                    Success(t) => break t,
-                                    Fail(s) => return Err(s),
-                                    Retry(s) => {
-                                        retries = retries.map(|x| x - 1);
-                                        match retries {
-                                            Some(n) if n == 0 => {
-                                                return Err(String::from("no more retries"))
-                                            }
-                                            _ => {
-                                                println!("{}", s);
-                                                thread::sleep(self.interval);
-                                                continue;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        file_data = keep_doing_until(self.max_retries, self.interval, || {
+                            function_to_run(file_data.clone())
+                        })?
                     }
                     let mut retries = self.max_retries;
                     loop {
@@ -140,6 +104,29 @@ impl<T: Clone> FileListBuilder<T> {
             }
         }
     }
+}
+
+fn keep_doing_until<F, T>(mut retries: Option<u32>, interval: Duration, f: F) -> Result<T, String>
+where
+    F: Fn() -> WatchingFuncResult<T>,
+{
+    Ok(loop {
+        match f() {
+            Success(t) => break t,
+            Fail(s) => return Err(s),
+            Retry(s) => {
+                retries = retries.map(|x| x - 1);
+                match retries {
+                    Some(n) if n == 0 => return Err(String::from("no more retries")),
+                    _ => {
+                        println!("{}", s);
+                        thread::sleep(interval);
+                        continue;
+                    }
+                }
+            }
+        }
+    })
 }
 
 impl<T> WatchedFile<T> {
