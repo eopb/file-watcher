@@ -1,4 +1,4 @@
-// #![deny(clippy::pedantic)]
+#![deny(clippy::pedantic)]
 // #![warn(missing_docs)]
 
 use set_error::ChangeError;
@@ -31,7 +31,7 @@ pub enum WatchingFuncResult<T> {
     Retry(String),
     Fail(String),
 }
-use WatchingFuncResult::*;
+use WatchingFuncResult::{Fail, Retry, Success};
 
 impl<T: Clone> FileListBuilder<T> {
     pub fn new<F: 'static + Fn(&str) -> WatchingFuncResult<T>>(open_func: F) -> Self {
@@ -144,11 +144,11 @@ impl<T: Clone> FileListBuilder<T> {
 
 impl<T> WatchedFile<T> {
     pub fn new<G: 'static + Fn(T) -> Result<(), String>>(
-        path: String,
+        path: &str,
         end_func: G,
     ) -> Result<Self, String> {
         Ok(Self {
-            path: path.clone(),
+            path: path.to_string(),
             date_modified: date_modified(&path)?,
             functions_on_run: Vec::new(),
             function_on_end: Rc::new(end_func),
