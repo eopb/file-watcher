@@ -15,6 +15,7 @@ pub struct FileListBuilder<T: Clone> {
     interval: Duration,
     max_retries: Option<u32>,
     open_file_func: Rc<Fn(&str) -> WatchingFuncResult<T>>,
+    run_only_once: bool,
 }
 
 #[derive(Clone)]
@@ -39,7 +40,12 @@ impl<T: Clone> FileListBuilder<T> {
             interval: Duration::from_millis(1000),
             max_retries: None,
             open_file_func: Rc::new(open_func),
+            run_only_once: false,
         }
+    }
+    pub fn run_only_once(mut self, q: bool) -> Self {
+        self.run_only_once = q;
+        self
     }
     pub fn add_file(&mut self, file: WatchedFile<T>) {
         self.files.push(file);
@@ -129,8 +135,10 @@ impl<T: Clone> FileListBuilder<T> {
                     thread::sleep(self.interval);
                 }
             }
+            if self.run_only_once {
+                return Ok(());
+            }
         }
-        Ok(())
     }
 }
 
